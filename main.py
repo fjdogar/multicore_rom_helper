@@ -125,11 +125,18 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
 
         input_folder = os.path.join(input_fold , "ROMS\\" + core)
         
+        """
         fnA = file_name.split(".")
-        file_name = fnA[0];
+        
         file_ext = fnA[1];
 
-        input_path = input_folder + "\\" + file_name
+        """
+        fn = os.path.splitext(os.path.basename(file_name))[0]
+        input_path = input_folder + "\\" + fn
+
+        #fname_noext = os.path.splitext(os.path.basename(input_folder))[0]
+        file_ext = os.path.splitext(file_name)[1][1:]
+        print("coming filename  is " + file_name)
 
         files = glob.glob(input_path + ".*" )
         print("path to file is " + input_path)
@@ -139,7 +146,7 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
             fname = os.path.splitext(os.path.basename(x))[0]
             fext = os.path.splitext(x)[1][1:]
             if fext != file_ext:
-                if isRom:
+                if isRom and fext not in ["bmp" , "png" , "gif" , "jpeg" , "jpg" ,"txt" , "pdf" , "sav" , "srm"]:
                     print("file except png found , extension is " + fext)
                     return fext
                 else:
@@ -192,6 +199,12 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
 
         # Create .zfb filename
         #zfb_filename = os.path.join(output_folder, os.path.splitext(file_name)[0] + '.zfb')
+        """
+        file_path = input_folder + file_name
+        fname_noext = os.path.splitext(os.path.basename(file_path))[0]
+        """
+
+        #fname_noext = os.path.splitext(file_name)[0]
 
         zfb_filename = os.path.join(output_folder , file_name + '.zfb')
 
@@ -252,8 +265,12 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                 print("File name before : " + file_name)
                 file_path = os.path.join(input_folder, file_name)
                 print("File name after : " + file_name)
+
+                
                 fname_noext = os.path.splitext(os.path.basename(file_path))[0]
                 file_ext = os.path.splitext(file_name)[1][1:]
+                
+
                 #file_ext = file_ext.lstrip(".")
                 print("extension is " + file_ext)
 
@@ -265,15 +282,20 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                 # if File is an Image , try to find a matching ROM extension
                 if file_ext in ["png" , "bmp" , "jpg" , "jpeg" , "gif"]:
                     rom_ext = self.find_matching_ext(file_name , True)
-                    if img_ext:
-                        file_name = os.path.join(input_folder, fname_noext + "." +rom_ext)
+                    if rom_ext:
+                        #file_name = os.path.join(input_folder, fname_noext + "." +rom_ext)
+                        file_name = fname_noext + "." +rom_ext
+                        img_ext = file_ext
+                    else:
+                        rom_list.append(fname_noext)
+                        continue
 
                 else:
                     img_ext = self.find_matching_ext(file_name , False)
                     if img_ext:
                         file_path = os.path.join(input_folder, fname_noext + "." +img_ext)
 
-                if rom_ext or img_ext:
+                if img_ext:
                      with Image.open(file_path) as img:
 
                         self.zfb_from_image(img , input_folder , core ,  file_name , output_folder )
@@ -292,6 +314,7 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                         
                             self.zfb_from_image(img , input_folder , core ,  file_name, output_folder )
                             print("png created with placeholder")
+                            rom_list.append(fname_noext)
 
                     except:
 
@@ -303,6 +326,11 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                         #print(os.path.splitext(file_name)[0])
                         with open(zfb_filename, 'wb') as zfb:
                             zfb.write(placeholder_data)
+
+                        rom_list.append(fname_noext)
+
+                rom_ext = False
+                img_ext = False
 
                     
             QMessageBox.information(self,'Success', 'ZFB files created successfully.')

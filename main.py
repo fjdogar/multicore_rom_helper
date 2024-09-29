@@ -18,7 +18,7 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
     def __init__(self, parent=None):
         super(MainDialog, self).__init__(parent)
         self.setupUi(self)
-        self.setFixedSize(632, 529)
+        self.setFixedSize(629, 599)
 
         basedir = os.path.dirname(__file__)
         self.setWindowIcon(QIcon(os.path.join(basedir, 'icon.png')))
@@ -26,31 +26,50 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
 
         #icon_path = os.path.join(sys._MEIPASS, 'icon.png')
         self.wdir.setPlainText(os.getcwd())
+        self.wdir2.setPlainText(os.getcwd())
+        self.wdir3.setPlainText(os.getcwd())
 
         self.pdir_root = self.wdir.toPlainText() + "\\placeholders"
 
         #self.setWindowIcon(QIcon(os.path.join(self.wdir.toPlainText(), 'icon.png')))
-        self.build_mdirs()
+        self.build_mdirs(False)
         self.sdir.addItems(["ARCADE" , "FC" , "SFC" , "GB" , "GBC" , "GBA"  , "MD"])
         self.sdir.setCurrentIndex(5)
         self.build_pfiles()
 
         self.chk_stub.stateChanged.connect(self.stub_clicked)
-        self.chk_refresh.stateChanged.connect(self.refresh_clicked)
+        #self.chk_refresh.stateChanged.connect(self.refresh_clicked)
 
-        self.btn_wdir.clicked.connect(self.setWorkingDir)
-        self.btn_process.clicked.connect(self.doProcess)
+        self.btn_wdir.clicked.connect(lambda: self.setWorkingDir(True))
+        self.btn_wdir2.clicked.connect(lambda: self.setWorkingDir(True))
+        self.btn_wdir3.clicked.connect(lambda: self.setWorkingDir(False))
 
-        #self.pdir = self.wdir.toPlainText() 
+        self.btn_process.clicked.connect(self.create_zfb_files)
+        self.btn_stubs.clicked.connect(self.create_stub_files)
+        self.btn_zfbs.clicked.connect(self.create_zfbs)
 
+        #self.pdir = self.wdir.toPlainText()
+
+        mcore = {
+
+            "a26"   : ["bin" , "a26"] ,
+            "a5200" : [] 
+
+        }
+
+
+    def create_zfbs(self):
+        self.create_zfb_files(True)
 
     def stub_clicked(self):
         if(self.chk_stub.isChecked()):
             #self.chk_stub.setCheckState(True)
-            self.chk_refresh.setCheckState(False)
-            return
+            self.mdir2.setEnabled(False)
+            #return
+        else:
+            self.mdir2.setEnabled(True)
         #self.chk_stub.setCheckState(Qt.Checked)
-        return
+        #return
 
     def refresh_clicked(self):
         if(self.chk_stub.isChecked()):
@@ -60,23 +79,33 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
         return
 
 
-    def setWorkingDir(self):
+    def setWorkingDir(self , m = True):
         wodir = QFileDialog.getExistingDirectory()
         if wodir:
             self.wdir.setPlainText(wodir)
-            self.build_mdirs()
+            self.wdir2.setPlainText(wodir)
+            self.wdir3.setPlainText(wodir)
+            
+            self.build_mdirs(m)
 
-    def build_mdirs(self):
+    def build_mdirs(self , m = True):
         wdir = self.wdir.toPlainText()
 
         try:
-            self.mdir.addItems([f.name for f in os.scandir(wdir +"\\ROMS") if f.is_dir() and f.name != "save" and f.name != "mnt" ])
+            mlist = [f.name for f in os.scandir(wdir +"\\ROMS") if f.is_dir() and f.name != "save" and f.name != "mnt" ]
+            self.mdir.addItems(mlist)
+            self.mdir2.addItems(mlist)
         except:
-            QMessageBox.information(self, "No Rom Directories",'No multicore ROMS folder found in current Root Directory')
+            if m:
+                QMessageBox.information(self, "No Rom Directories",'No multicore ROMS folder found in current Root Directory')
+
+            self.mdir.clear()
+            self.mdir2.clear()
 
         count = self.mdir.count()
 
         self.mdir.setCurrentIndex(0)
+        self.mdir2.setCurrentIndex(0)
 
 
     def build_pfiles(self):
@@ -95,7 +124,11 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
         for f in os.scandir(pdir_root):
             if f.name.lower().endswith(imgtypes):
                 self.pdir.addItem(QIcon(f.path) , f.name)
+                self.pdir2.addItem(QIcon(f.path) , f.name)
+
         self.pdir.setIconSize(QSize(59, 85))
+        self.pdir2.setIconSize(QSize(59, 85))
+
         if not self.pdir.count() > 0:
             QMessageBox.information(self,'No Placeholders', 'No Placeholder files found in Placeholder Directory')
             #self.pdir['values'] = []
@@ -103,6 +136,10 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
 
         self.pdir.insertItem(0,"      Dont Use Placeholder")
         self.pdir.setCurrentIndex(0)
+
+        self.pdir2.insertItem(0,"      Dont Use Placeholder")
+        self.pdir2.setCurrentIndex(0)
+
         print("pdir selected item is " + self.pdir.currentText().strip())
         """
         noph = ["Dont Use Placeholder"]
@@ -161,21 +198,42 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
         return False
 
     def create_stub_files(self):
-        core = self.mdir.currentText()
-        wdir = self.wdir.toPlainText()
+        core = self.mdir2.currentText()
+        wdir = self.wdir2.toPlainText()
         core = core.strip()
         #wdir = self.input_folder_var.get()
-        romdir = wdir + "\\ROMS\\" + core
 
-        if not wdir or not romdir or not core: #or not extension:
-                QMessageBox.warning(self,'Warning', 'Please fill in all the fields and select multicore rom directory')
+        if self.chk_stub.isChecked():
+            if not wdir:
+                QMessageBox.warning(self,'Error', 'Root Directory not selected')
                 return
 
-        for rom in os.listdir(romdir):
-            re = rom.split(".")[1]
-            if re not in ["png" , "gif" , "jpg" , "jpeg" , "gif" , "txt"]:
-                with open(os.path.join(wdir,"ROMS",f"{core};{rom}.gba"), 'w'): 
-                    pass
+            romfolder = os.path.join(wdir,"ROMS")
+            if os.path.exists(romfolder):
+                for d in os.listdir(romfolder):                    
+                    #romfolder = os.path.join(wdir,"ROMS",d)
+                    
+                    if os.path.isdir(os.path.join(romfolder , d)) and d not in ["save" , "mnt"]:
+                        for rom in os.listdir(os.path.join(romfolder , d)):
+                            rext = os.path.splitext(rom)[1][1:]
+                            if rext not in ["png" , "gif" , "jpg" , "jpeg" , "gif" , "txt"]:
+                                with open(os.path.join(romfolder,f"{d};{rom}.gba"), 'w'): 
+                                    pass
+            else:
+                QMessageBox.warning(self,'Error', 'ROMS folder not found. Check Root Folder')
+                return
+        else:
+
+            romdir = wdir + "\\ROMS\\" + core
+            if not wdir or not romdir or not core: #or not extension:
+                    QMessageBox.warning(self,'Warning', 'Please fill in all the fields and select multicore rom directory')
+                    return
+
+            for rom in os.listdir(romdir):
+                rext = os.path.splitext(rom)[1][1:]
+                if rext not in ["png" , "gif" , "jpg" , "jpeg" , "gif" , "txt"]:
+                    with open(os.path.join(wdir,"ROMS",f"{core};{rom}.gba"), 'w'): 
+                        pass
 
         QMessageBox.information(self ,"Processed" , "STUBS created")
 
@@ -185,6 +243,15 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
         thumb_size = (144, 208)
         img = img.resize(thumb_size)
         img = img.convert("RGB")
+
+
+        apptxt = self.apptxt.toPlainText().strip()
+        pretxt = self.pretxt.toPlainText().strip()
+        addext = ""
+
+        file_path = os.path.join(output_folder , file_name)
+        fname_noext = os.path.splitext(os.path.basename(file_path))[0]
+        file_ext = os.path.splitext(file_name)[1][1:]
 
         raw_data = []
 
@@ -206,7 +273,10 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
 
         #fname_noext = os.path.splitext(file_name)[0]
 
-        zfb_filename = os.path.join(output_folder , file_name + '.zfb')
+        if self.chk_romext.isChecked():
+            addext = "." + file_ext
+
+        zfb_filename = os.path.join(output_folder , pretxt + fname_noext + apptxt + addext + '.zfb')
 
         # Write the image data to the .zfb file
         with open(zfb_filename, 'wb') as zfb:
@@ -219,14 +289,33 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
             print(f"Shortcut is : {core};{file_name}.gba")
             zfb.write(b'\x00\x00')  # Write two 00 bytes
 
-    def create_zfb_files(self):
+    def create_zfb_files(self , m = False):
 
-        sdir = self.sdir.currentText()
-        print("stock dir is " + sdir)
-        pdir = self.pdir.currentText().strip()
-        core = self.mdir.currentText()
+        if not m:
+            sdir = self.sdir.currentText()
+            print("stock dir is " + sdir)
+            pdir = self.pdir.currentText().strip()
+            core = self.mdir.currentText()
 
-        sdir = sdir.strip()
+            input_fold = self.wdir.toPlainText()
+            input_folder = os.path.join(input_fold , "ROMS\\" + core)
+            output_folder = input_fold + "\\" +  sdir
+
+        else:
+            sdir = self.wdir3.toPlainText()
+            pdir = self.pdir2.currentText().strip()
+            core = self.coretxt.toPlainText()
+
+            input_fold = sdir.strip()
+            input_folder = input_fold
+            output_folder = input_fold + "\\zfbs"
+
+
+        apptxt = self.apptxt.toPlainText().strip()
+        pretxt = self.pretxt.toPlainText().strip()
+        addext = ""
+
+
         core = core.strip()
         pdir = pdir.strip()
 
@@ -234,25 +323,28 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
         img_ext = False;
 
         try:
-            input_fold = self.wdir.toPlainText()
             
-            output_folder = input_fold + "\\" +  sdir
-
-            
-            #edit
-            input_folder = os.path.join(input_fold , "ROMS\\" + core)
-            #edit
 
             if not os.path.isdir(output_folder):
-                tdq = QMessageBox.question(self,'Stock Directory', 'Selected Stock Folder doesnt Exist , Do you want to Create it?' , QMessageBox.Yes|QMessageBox.No)
-                if tdq == QMessageBox.Yes:
-                    os.makedirs(output_folder)
-                    QMessageBox.information(self,"Directory" , "Directory Created")
+                
+                if not m:
+                    tdq = QMessageBox.question(self,'Stock Directory', 'Selected Stock Folder doesnt Exist , Do you want to Create it?' , QMessageBox.Yes|QMessageBox.No)
+                    if tdq == QMessageBox.Yes:
+                        os.makedirs(output_folder)
+                        QMessageBox.information(self,"Directory" , "Directory Created")
+                    else:
+                        return
                 else:
-                    return
+                    os.makedirs(output_folder)
+
             # Check if folders are selected
             if not input_folder or not output_folder or not core: #or not extension:
-                QMessageBox.warning(self,'Warning', 'Please fill in all the fields and select multicore rom dir and Stock dir.')
+                
+                if not m:
+                    QMessageBox.warning(self,'Warning', 'Please fill in all the fields and select multicore rom dir and Stock dir.')
+                else:
+                    QMessageBox.warning(self,'Warning', 'Please fill in all fields , Select Input Folder and Enter the CORE name')
+
                 return
 
             thumb_size = (144, 208)
@@ -262,6 +354,8 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
             # Iterate over all files in the input folder
             for file_name in os.listdir(input_folder):
                 
+                if os.path.isdir(file_name):
+                    continue
                 print("File name before : " + file_name)
                 file_path = os.path.join(input_folder, file_name)
                 print("File name after : " + file_name)
@@ -269,6 +363,9 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                 
                 fname_noext = os.path.splitext(os.path.basename(file_path))[0]
                 file_ext = os.path.splitext(file_name)[1][1:]
+
+                if self.chk_romext.isChecked():
+                    addext = "." + file_ext
                 
 
                 #file_ext = file_ext.lstrip(".")
@@ -322,7 +419,7 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                         print(f"shortcut is {core};{file_name}.gba")
                         placeholder_data = b'\x00' * 0xEA00 + b'\x00\x00\x00\x00' + f"{core};{file_name}.gba".encode('utf-8') + b'\x00\x00'
                         #zfb_filename = os.path.join(output_folder, os.path.splitext(file_name)[0] + '.zfb')
-                        zfb_filename = os.path.join(output_folder , file_name + '.zfb')
+                        zfb_filename = os.path.join(output_folder , pretxt + fname_noext + apptxt + addext + '.zfb')
                         #print(os.path.splitext(file_name)[0])
                         with open(zfb_filename, 'wb') as zfb:
                             zfb.write(placeholder_data)
@@ -335,7 +432,7 @@ class MainDialog(QDialog, mainDialog.Ui_Dialog):
                     
             QMessageBox.information(self,'Success', 'ZFB files created successfully.')
 
-            if self.chk_refresh.isChecked():
+            if self.chk_refresh.isChecked() and not m:
                 self.rebuildAll()
                 QMessageBox.information(self,'Roms Refresh', 'All Rom lists have been refreshed.')
         except Exception as e:
